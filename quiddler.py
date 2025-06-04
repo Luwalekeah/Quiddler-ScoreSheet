@@ -21,7 +21,7 @@ def handle_calculation():
     st.session_state.calc_input = ""  # clear the input for the next entry
 
 # ── 4. UI: Title ────────────────────────────────────────────────────────────────
-st.title("🧮 Quick Calculator")
+st.title("🧮 Quiddler ScoreSheet")
 
 # ── 5. UI: Label + Input in Left Column, Button in Right Column ─────────────────
 col_left, col_right = st.columns([4, 1], gap="small")
