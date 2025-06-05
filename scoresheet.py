@@ -33,7 +33,7 @@ class QuiddlerScoresheet:
         player_names = self._get_player_names()
         return pd.DataFrame({
             "Round": list(range(1, st.session_state.num_games + 1)),
-            **{name: [0] * st.session_state.num_games for name in player_names}
+            **{name: [-1] * st.session_state.num_games for name in player_names}  # Use -1 instead of None
         })
 
     def _preserve_existing_scores(self, old_df, new_df):
@@ -157,6 +157,8 @@ class QuiddlerScoresheet:
                     step=1,
                     format="%d"
                 )
+        
+        df.replace(-1, 0, inplace=True)  # Prevent empty cells from reverting
 
         # Render data editor
         edited_df = st.data_editor(
@@ -169,7 +171,7 @@ class QuiddlerScoresheet:
         )
 
         # Save changes
-        st.session_state["df_scores"] = edited_df
+        st.session_state["df_scores"] = edited_df.copy()
 
     def render_totals(self):
         """Display running totals for each player."""
