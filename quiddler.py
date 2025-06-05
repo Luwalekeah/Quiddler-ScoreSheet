@@ -3,15 +3,17 @@
 import streamlit as st
 from expander import QuiddlerExpanders
 from calculator import QuiddlerCalculator
-from scoresheet import QuiddlerScoresheet  # <-- import the class instead of a function
+from scoresheet import QuiddlerScoresheet
 
 def main():
     """Main application function."""
 
     # ── 1) Page Config ──────────────────────────────────────────────────────────
     st.set_page_config(
-        page_title="Quiddler ScoreSheet",
+        page_title="Quiddler Score Sheet",
+        page_icon="🃏",
         layout="centered",
+        initial_sidebar_state="collapsed"
     )
 
     # ── 2) Banner (if desired) ─────────────────────────────────────────────────
@@ -35,7 +37,7 @@ def main():
     # ── 3) Title ─────────────────────────────────────────────────────────────────
     st.markdown(
         """
-        <h1 style="text-align:center;">🧮 Quiddler ScoreSheet</h1>
+        <h1 style="text-align:center;">🃏 Quiddler Score Sheet</h1>
         <p style="text-align:center; color:#555;">
             The award-winning short word game that's easy to learn and keeps your mind sharp.
         </p>
