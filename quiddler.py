@@ -1,48 +1,74 @@
+# quiddler.py
+
 import streamlit as st
+from expander import QuiddlerExpanders
+from calculator import QuiddlerCalculator
+from scoresheet import QuiddlerScoresheet  # <-- import the class instead of a function
 
-# ── 1. Page Config ──────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="Quick Calculator",
-    layout="centered",
-)
+def main():
+    """Main application function."""
 
-# ── 2. State Initialization ─────────────────────────────────────────────────────
-if "calc_output" not in st.session_state:
-    st.session_state.calc_output = ""
-
-# ── 3. Callback Definition ──────────────────────────────────────────────────────
-def handle_calculation():
-    expr = st.session_state.calc_input
-    try:
-        result_value = eval(expr, {"__builtins__": {}}, {})
-    except Exception as err:
-        result_value = f"Error: {err}"
-    st.session_state.calc_output = result_value
-    st.session_state.calc_input = ""  # clear the input for the next entry
-
-# ── 4. UI: Title ────────────────────────────────────────────────────────────────
-st.title("🧮 Quiddler ScoreSheet")
-
-# ── 5. UI: Label + Input in Left Column, Button in Right Column ─────────────────
-col_left, col_right = st.columns([4, 1], gap="small")
-
-with col_left:
-    st.markdown("Enter a math formula:")
-    st.text_input(
-        label="formula",
-        key="calc_input",
-        placeholder="e.g. (12 / 4) + 3**2",
-        label_visibility="collapsed",
+    # ── 1) Page Config ──────────────────────────────────────────────────────────
+    st.set_page_config(
+        page_title="Quiddler ScoreSheet",
+        layout="centered",
     )
 
-with col_right:
-    # Add some space to align with the input field
-    st.markdown("&nbsp;")  # Empty space where the label would be
-    st.button("Calculate", on_click=handle_calculation)
+    # ── 2) Banner (if desired) ─────────────────────────────────────────────────
+    if "first_time" not in st.session_state:
+        welcome_banner = """
+        <div style="
+            background-color: #87CEEB;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        ">
+            <span style="font-weight:bold; color:#003366; font-size:16px;">
+                Game Instructions &amp; Notes can be found at the bottom of the app.
+            </span>
+        </div>
+        """
+        st.markdown(welcome_banner, unsafe_allow_html=True)
+        st.session_state.first_time = False
 
-# ── 6. UI: Display the Result Below ───────────────────────────────────────────────
-if st.session_state.calc_output != "":
+    # ── 3) Title ─────────────────────────────────────────────────────────────────
     st.markdown(
-        f"<p style='font-size:16pt; margin-top:12px;'>Result: {st.session_state.calc_output}</p>",
+        """
+        <h1 style="text-align:center;">🧮 Quiddler ScoreSheet</h1>
+        <p style="text-align:center; color:#555;">
+            The award-winning short word game that's easy to learn and keeps your mind sharp.
+        </p>
+        """,
         unsafe_allow_html=True,
     )
+
+    # ── 4) Calculator Interface ─────────────────────────────────────────────────
+    calculator = QuiddlerCalculator()
+    calculator.render_calculator()
+
+    # ── 5) Score Sheet ───────────────────────────────────────────────────────────
+    scoresheet = QuiddlerScoresheet()             # ← instantiate the class
+    scoresheet.render_scoresheet()                # ← call the method
+
+    # ── 6) Divider Before Expanders ─────────────────────────────────────────────
+    st.markdown("---")
+
+    # ── 7) Expanders at Bottom ──────────────────────────────────────────────────
+    expanders = QuiddlerExpanders()
+    expanders.render_all_expanders()
+
+    # ── 8) Footer Copyright ─────────────────────────────────────────────────────
+    st.markdown(
+        """
+        <div style="display: flex; justify-content: center; text-align: center;">
+            <p>© 2025 TechTales w/ Luwah.
+            <a href="https://github.com/Luwalekeah" target="_blank">GitHub</a></p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+if __name__ == "__main__":
+    main()
