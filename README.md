@@ -12,6 +12,7 @@ A Streamlit-based interactive score sheet and calculator for the Quiddler word g
   - [Usage](#usage)
   - [File Structure](#file-structure)
   - [Configuration](#configuration)
+  - [Run in a Container (k3s)](#run-in-a-container-k3s)
   - [Dependencies](#dependencies)
   - [Contributing](#contributing)
   - [License \& Credits](#license--credits)
@@ -89,10 +90,11 @@ streamlit run quiddler.py
 
 ```
 Quiddler-ScoreSheet/
-├── calculator.py       # QuiddlerCalculator class: arithmetic input/output
+├── calculator.py       # QuiddlerCalculator class: safe arithmetic input/output
 ├── expander.py         # QuiddlerExpanders class: game instructions, rules, reference
 ├── scoresheet.py       # QuiddlerScoresheet class: dynamic score table + totals
 ├── quiddler.py         # Main Streamlit entry point, stitches features together
+├── Dockerfile          # Container image (see "Run in a Container")
 ├── tests/              # AppTest-based tests (run with `pytest`)
 ├── README.md           # This documentation file
 ├── requirements.txt    # Pinned runtime dependencies
@@ -105,6 +107,28 @@ Quiddler-ScoreSheet/
 * **Page Configuration**: The app uses `st.set_page_config` to set a centered layout and custom page title.
 * **Session State**: Player counts, round counts, and scores persist in Streamlit’s `session_state` between reruns.
 * **Expander Visibility**: The top controls (settings & player names) are hidden inside an expandable panel for a cleaner interface.
+
+## Run in a Container (k3s)
+
+```sh
+docker build -t quiddler-scoresheet .
+docker run --rm -p 8501:8501 quiddler-scoresheet
+```
+
+Multi-architecture image (every dependency ships arm64 wheels, so no compilers are needed):
+
+```sh
+docker buildx build --platform linux/amd64,linux/arm64 -t <registry>/quiddler-scoresheet:<tag> --push .
+```
+
+Running it on Kubernetes / k3s:
+
+* Container port `8501`. Point liveness and readiness probes at `GET /_stcore/health` (returns `ok`).
+* Runs as UID/GID `10001`, so `runAsNonRoot: true` works. The image sets `HOME=/home/app`; the app started and served pages with an unwritable `HOME`, so a read-only root filesystem is expected to work (mount an `emptyDir` at `/tmp` if you see write errors).
+* The ingress must pass WebSocket connections through (Traefik, k3s's default, does). To serve under a sub-path set `STREAMLIT_SERVER_BASE_URL_PATH`.
+* The image sets `STREAMLIT_CLIENT_TOOLBAR_MODE=viewer`, which hides the "Deploy" button and developer menu items.
+
+This repository does not include Kubernetes manifests.
 
 ## Dependencies
 
