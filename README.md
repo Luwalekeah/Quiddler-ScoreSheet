@@ -1,136 +1,75 @@
 # Quiddler ScoreSheet
 
-A Streamlit-based interactive score sheet and calculator for the Quiddler word game, complete with gameplay instructions and reference materials.
+A phone-first score sheet for the Quiddler card game. Type the words you played and it does the arithmetic, including the round bonuses. Scores survive a refresh, a backgrounded tab, and a dead signal at the table.
 
-## Table of Contents
+## Why it was rewritten
 
-- [Quiddler ScoreSheet](#quiddler-scoresheet)
-  - [Table of Contents](#table-of-contents)
-  - [Overview](#overview)
-  - [Features](#features)
-  - [Installation](#installation)
-  - [Usage](#usage)
-  - [File Structure](#file-structure)
-  - [Configuration](#configuration)
-  - [Dependencies](#dependencies)
-  - [Contributing](#contributing)
-  - [License \& Credits](#license--credits)
+The previous version was a Streamlit app. Streamlit keeps session state in server memory tied to a websocket, so a refresh started a new session and lost the game. On a phone, switching to another app dropped the socket and did the same. That is the architecture, not a bug that could be patched, so the app was rebuilt local-first.
 
----
+The rewrite also corrected the card values. Five of the 31 were wrong in the old reference, including E, which had its card count (12) sitting in the points column instead of its value (2). Every score calculated from that table was wrong. The values now live in one place, `src/lib/cards.ts`, and the reference screen derives its display from them rather than restating them.
 
-## Overview
-
-Quiddler ScoreSheet is a lightweight web application built with Streamlit to help Quiddler players track scores, calculate letter values, and access game instructions and reference materials. The application includes:
-
-* An in-app calculator for quick arithmetic during gameplay.
-* A dynamic, editable score sheet that automatically tallies player totals.
-* Expandable sections containing game overview, rules, scoring guidelines, and strategy tips.
-* A navigation banner and footer with developer credits.
+The old app also said the game ran 10 rounds. It is 8. Round 1 deals 3 cards and each round deals one more, so the last round deals 10.
 
 ## Features
 
-* **Interactive Calculator**: Evaluate mathematical expressions (e.g., calculating word scores) directly within the app.
-* **Dynamic Score Sheet**:
+- **Word scoring.** Type a word and it becomes card chips with a running total. Double-letter cards are ambiguous, so "THIN" can be TH+IN for 16 or T+H+I+N for 17. Only you know which cards you held, so tap a chip to split it.
+- **Automatic bonuses.** 10 points for most words and 10 for the longest word, computed across the whole table. Ties award nobody. Two-player games use one bonus.
+- **Local-first persistence.** Every change is written to IndexedDB immediately, then synced. Scoring keeps working with no signal.
+- **Game history.** Finished games are kept with final standings, the winner, and the full round grid.
+- **Guest players.** Anyone at the table can play without an account.
+- **Installs to the home screen.** It is a PWA.
 
-  * Configure the number of players (1–8) and number of rounds (1–10).
-  * Enter player names and input scores per round in a spreadsheet-like interface.
-  * View real-time totals for each player.
-* **Expanders Section**:
+## Stack
 
-  * Game Overview: Player counts, age ranges, and deck composition.
-  * How to Play: Turn mechanics, going out rules, and word requirements.
-  * Scoring System: Basic scoring, bonus points breakdown, and special rules.
-  * Challenges & Strategy: Word challenge rules and strategic tips.
-  * Card Reference: Letter values, deck quantities, and special double-letter cards.
-  * Quick Letter Lookup: Simplified letter-value lookup table.
-* **Responsive UI**: Designed for a centered layout, auto-adjusts to various screen sizes.
+Next.js 16 (App Router), React 19, Tailwind CSS v4, TypeScript. Self-hosted Supabase for auth, storage, and cross-device sync.
 
-## Installation
+Tailwind v4 is CSS-first. Theme tokens live in the `@theme` block in `src/app/globals.css`. There is no `tailwind.config.js`, by design.
 
-1. **Clone the repository**:
-
-   ```sh
-   git clone https://github.com/Luwalekeah/Quiddler-ScoreSheet.git
-   cd Quiddler-ScoreSheet
-   ```
-2. **Create a virtual environment** (recommended):
-
-   ```sh
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-3. **Install dependencies**:
-
-   ```sh
-   pip install -r requirements.txt
-   ```
-
-   If no `requirements.txt` exists, install Streamlit and pandas directly:
-
-   ```sh
-   pip install streamlit pandas
-   ```
-
-## Usage
-
-Run the Streamlit application:
+## Running it
 
 ```sh
-streamlit run quiddler.py
+npm install
+npm run dev
 ```
 
-* Open the provided `localhost` URL in your browser (e.g., `http://localhost:8501`).
-* Use the calculator panel to compute expressions.
-* Expand the “Settings & Player Names” section to configure players and rounds.
-* Enter scores in the dynamic table and view totals in the “Totals” row.
-* Scroll down to access game instructions and reference expanders.
+It runs with no backend configured. Auth and cross-device sync are unavailable in that mode and the app says so, but a full game can be scored start to finish and it persists locally. That is also how the test suite runs.
 
-## File Structure
+To connect a backend, copy `.env.example` to `.env.local` and fill it in.
 
-```
-Quiddler-ScoreSheet/
-├── calculator.py       # QuiddlerCalculator class: arithmetic input/output
-├── expander.py         # QuiddlerExpanders class: game instructions, rules, reference
-├── scoresheet.py       # QuiddlerScoresheet class: dynamic score table + totals
-├── quiddler.py         # Main Streamlit entry point, stitches features together
-├── README.md           # This documentation file
-├── requirements.txt    # Python package dependencies (if provided)
-└── .gitignore          # Ignore environment files, __pycache__, etc.
-```
-
-## Configuration
-
-* **Page Configuration**: The app uses `st.set_page_config` to set a centered layout and custom page title.
-* **Session State**: Player counts, round counts, and scores persist in Streamlit’s `session_state` between reruns.
-* **Expander Visibility**: The top controls (settings & player names) are hidden inside an expandable panel for a cleaner interface.
-
-## Dependencies
-
-* [Streamlit](https://streamlit.io/) ≥ 1.10.0
-* [Pandas](https://pandas.pydata.org/) ≥ 1.3.0
-
-You can install these via:
+## Tests
 
 ```sh
-pip install streamlit pandas
+npm test         # unit tests
+npm run test:e2e # end to end, WebKit on an iPhone viewport
 ```
 
-## Contributing
+The unit tests cover the scoring engine, including an assertion that the deck sums to 118 cards so a typo in the card table fails the build rather than silently mis-scoring a game.
 
-Contributions, issues, and feature requests are welcome!
+The end to end tests run in WebKit because iOS Safari is where the original data loss was felt. They cover the refresh and backgrounded-tab cases directly.
 
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature-name`).
-3. Make your changes and commit (`git commit -m 'Add feature'`).
-4. Push to the branch (`git push origin feature-name`).
-5. Open a pull request.
+## Layout
 
-Please ensure pull requests follow the existing code style and include relevant tests or documentation updates.
+```
+src/lib/cards.ts       Card values and deck composition. Single source of truth.
+src/lib/score.ts       Scoring engine. Tokenizing, rounds, bonuses, standings.
+src/lib/rules.ts       Reference content, derived from cards.ts.
+src/lib/local/         IndexedDB and the outbox.
+src/lib/sync/          Sync engine, realtime, and the useGame hook.
+src/lib/db/            Supabase clients and row mappers.
+src/components/        UI, split into game, entry, and setup.
+src/app/               Routes.
+supabase/migrations/   Schema and row level security.
+e2e/                   Playwright tests.
+```
 
-## License & Credits
+## Deployment
 
-**Copyright © 2025 TechTales w/ Luwah.**
+The app is containerised and runs on a k3s cluster behind a Cloudflare Tunnel, against a self-hosted Supabase in the same cluster. It reads `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` at runtime, so one image works in any environment.
 
-Original repository: [https://github.com/Luwalekeah](https://github.com/Luwalekeah)
+The anon key is public by design. It is only safe because row level security is correct, which is why `supabase/migrations/0002_quiddler_rls.sql` is written the way it is.
 
-Licensed under the MIT License. See `LICENSE` for details.
+## Credits
+
+Copyright © 2026 TechTales w/ Luwah. MIT licensed.
+
+Quiddler is a trademark of Cannei, LLC. This is an unofficial score keeping tool and is not affiliated with or endorsed by the publisher.
