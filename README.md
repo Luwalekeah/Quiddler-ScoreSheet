@@ -93,8 +93,10 @@ Quiddler-ScoreSheet/
 ├── expander.py         # QuiddlerExpanders class: game instructions, rules, reference
 ├── scoresheet.py       # QuiddlerScoresheet class: dynamic score table + totals
 ├── quiddler.py         # Main Streamlit entry point, stitches features together
+├── tests/              # AppTest-based tests (run with `pytest`)
 ├── README.md           # This documentation file
-├── requirements.txt    # Python package dependencies (if provided)
+├── requirements.txt    # Pinned runtime dependencies
+├── requirements-dev.txt# Runtime dependencies + pytest
 └── .gitignore          # Ignore environment files, __pycache__, etc.
 ```
 
@@ -106,13 +108,25 @@ Quiddler-ScoreSheet/
 
 ## Dependencies
 
-* [Streamlit](https://streamlit.io/) ≥ 1.10.0
-* [Pandas](https://pandas.pydata.org/) ≥ 1.3.0
+Pinned in `requirements.txt` (Python **3.12 or newer** is required by NumPy 2.5):
 
-You can install these via:
+* [Streamlit](https://streamlit.io/) 1.64.0
+* [Pandas](https://pandas.pydata.org/) 3.0.6
+* [NumPy](https://numpy.org/) 2.5.3 and [PyArrow](https://arrow.apache.org/docs/python/) 25.0.1 (pulled in by Streamlit and Pandas; the app code does not import them directly)
+
+Install with:
 
 ```sh
-pip install streamlit pandas
+pip install -r requirements.txt
+```
+
+## Tests
+
+The tests drive the real app headlessly with Streamlit's `AppTest`:
+
+```sh
+pip install -r requirements-dev.txt
+pytest
 ```
 
 ## Contributing

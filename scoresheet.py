@@ -211,7 +211,7 @@ class QuiddlerScoresheet:
                     
                     # Create number input for this cell
                     score_value = st.number_input(
-                        label="",
+                        label=f"{player} score, round {round_num}",
                         min_value=0,
                         max_value=999,
                         value=st.session_state.scores[score_key] if st.session_state.scores[score_key] is not None else 0,
