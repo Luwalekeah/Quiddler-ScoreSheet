@@ -29,7 +29,7 @@ Quiddler ScoreSheet is a lightweight web application built with Streamlit to hel
 
 ## Features
 
-* **Interactive Calculator**: Evaluate mathematical expressions (e.g., calculating word scores) directly within the app.
+* **Interactive Calculator**: Evaluate arithmetic (`+ - * / // % **` and parentheses, e.g. calculating word scores) directly within the app. Only numbers and these operators are accepted.
 * **Dynamic Score Sheet**:
 
   * Configure the number of players (1–8) and number of rounds (1–10).
