@@ -2,11 +2,22 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
+import persistence
+
+APP_NAME = "quiddler"
+MAX_PLAYERS = 8
+MAX_ROUNDS = 10
+MAX_SCORE = 999
+MAX_NAME_LENGTH = 40
+STATE_VERSION = 1
+
+
 class QuiddlerScoresheet:
     """Interactive score sheet for Quiddler card game using Streamlit."""
 
     def __init__(self):
         self._initialize_session_state()
+        self._game = persistence.GameSession(APP_NAME)
 
     def _initialize_session_state(self):
         """Initialize session state variables with defaults."""
@@ -129,7 +140,7 @@ class QuiddlerScoresheet:
             new_players = st.number_input(
                 "Number of players",
                 min_value=2,
-                max_value=8,
+                max_value=MAX_PLAYERS,
                 value=current_num_players,
                 help="How many people are playing?",
                 key="num_players_input"
@@ -139,7 +150,7 @@ class QuiddlerScoresheet:
             new_games = st.number_input(
                 "Number of rounds",
                 min_value=1,
-                max_value=10,
+                max_value=MAX_ROUNDS,
                 value=current_num_games,
                 help="How many rounds to play (max 10)",
                 key="num_games_input"
@@ -168,7 +179,8 @@ class QuiddlerScoresheet:
                 st.text_input(
                     f"Player {i + 1}",
                     key=f"player_name_{i}",
-                    placeholder=f"Player {i + 1}"
+                    placeholder=f"Player {i + 1}",
+                    max_chars=MAX_NAME_LENGTH,
                 )
                 
                 # Note: We don't need to manually track name changes here
@@ -213,7 +225,7 @@ class QuiddlerScoresheet:
                     score_value = st.number_input(
                         label=f"{player} score, round {round_num}",
                         min_value=0,
-                        max_value=999,
+                        max_value=MAX_SCORE,
                         value=st.session_state.scores[score_key] if st.session_state.scores[score_key] is not None else 0,
                         step=1,
                         key=score_key,
@@ -286,6 +298,8 @@ class QuiddlerScoresheet:
 
     def render_scoresheet(self):
         """Render the complete scoresheet interface."""
+        self._restore_saved_game()
+
         # Update DataFrame before rendering components, but only if needed
         self._update_scores_dataframe()
 
@@ -307,6 +321,101 @@ class QuiddlerScoresheet:
             self.render_totals()
         with col2:
             self.render_game_summary()
+
+        self._autosave_game()
+        self._render_game_controls()
+
+    # ── Saved games (optional; see persistence.py) ──────────────────────────────
+
+    def _snapshot(self):
+        """The visible sheet as a JSON-able dict: players, rounds and every entered score."""
+        names = self._get_player_names()
+        scores = st.session_state.get("scores", {})
+        rounds = st.session_state.num_games
+        return {
+            "v": STATE_VERSION,
+            "players": names,
+            "rounds": rounds,
+            "scores": [
+                [
+                    int(scores[f"score_{name}_{r}"]) if scores.get(f"score_{name}_{r}") else None
+                    for name in names
+                ]
+                for r in range(1, rounds + 1)
+            ],
+        }
+
+    @staticmethod
+    def _validated_state(state):
+        """Return `state` if it is a well-formed saved Quiddler sheet, else None."""
+        try:
+            players, rounds, scores = state["players"], state["rounds"], state["scores"]
+            if state.get("v") != STATE_VERSION:
+                return None
+            if not (isinstance(players, list) and 2 <= len(players) <= MAX_PLAYERS):
+                return None
+            if not all(isinstance(p, str) and len(p) <= MAX_NAME_LENGTH for p in players):
+                return None
+            if len(set(players)) != len(players):  # names are part of the widget keys
+                return None
+            if type(rounds) is not int or not 1 <= rounds <= MAX_ROUNDS:
+                return None
+            if not (isinstance(scores, list) and len(scores) == rounds):
+                return None
+            for row in scores:
+                if not (isinstance(row, list) and len(row) == len(players)):
+                    return None
+                for value in row:
+                    if value is not None and not (type(value) is int and 0 <= value <= MAX_SCORE):
+                        return None
+        except (AttributeError, KeyError, TypeError):
+            return None
+        return state
+
+    def _apply_saved_state(self, state):
+        """Load a validated saved sheet into session state. Must run before the widgets are drawn."""
+        players = state["players"]
+        st.session_state.num_players = len(players)
+        st.session_state.num_games = state["rounds"]
+        for i, name in enumerate(players):
+            st.session_state[f"player_name_{i}"] = name
+        st.session_state.scores = {
+            f"score_{name}_{r}": value
+            for r, row in enumerate(state["scores"], start=1)
+            for name, value in zip(players, row)
+            if value
+        }
+
+    def _restore_saved_game(self):
+        saved = self._game.restore()
+        if saved is None:
+            return
+        clean = self._validated_state(saved)
+        if clean is None:
+            self._game.mark_unusable()
+            return
+        self._apply_saved_state(clean)
+
+    def _autosave_game(self):
+        self._game.save_if_changed(self._snapshot())
+
+    def _new_game(self):
+        """Button callback: detach from the saved game and reset every name, score and setting."""
+        persistence.forget_game()
+        first_time = st.session_state.get("first_time")
+        st.session_state.clear()
+        if first_time is not None:
+            st.session_state["first_time"] = first_time  # keep the welcome banner from reappearing
+
+    def _render_game_controls(self):
+        if not self._game.enabled:
+            return
+        st.divider()
+        status, action = st.columns([3, 1])
+        with status:
+            self._game.render_status()
+        with action:
+            st.button("🆕 New game", key="new_game", on_click=self._new_game, help="Start over with a blank score sheet")
 
     def export_scores(self):
         """Export scores to CSV (future enhancement)."""

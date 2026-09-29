@@ -36,6 +36,15 @@ def app():
     return at
 
 
+def new_app(game=None):
+    """Start the app, optionally as if the browser had opened /?game=<game>."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    if game is not None:
+        at.query_params["game"] = game
+    at.run()
+    return at
+
+
 def score_input(at, player, round_number):
     return next(n for n in at.number_input if n.key == f"score_{player}_{round_number}")
 

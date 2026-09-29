@@ -86,7 +86,7 @@ def test_renaming_a_player_keeps_their_scores(app):
     assert totals(app)["Alice"] == 20
 
 
-@pytest.mark.xfail(strict=True, reason="Two players with the same name share widget keys -> DuplicateWidgetID crash")
+@pytest.mark.xfail(strict=True, reason="Two players with the same name share widget keys -> duplicate-key exception (app crash)")
 def test_duplicate_player_names_do_not_crash(app):
     name_input(app, 1).set_value("Player 1")
     app.run()
