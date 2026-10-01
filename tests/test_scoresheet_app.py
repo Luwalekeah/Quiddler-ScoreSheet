@@ -1,5 +1,4 @@
 """Behavioural tests that drive the real app through Streamlit's AppTest."""
-import pytest
 from streamlit.testing.v1 import AppTest
 
 from conftest import APP_PATH, name_input, score_input, setting_input, totals
@@ -77,7 +76,6 @@ def test_adding_a_player_keeps_existing_scores(app):
 # --- Known problems, recorded as strict xfails so they are reproducible and flip loudly when fixed.
 
 
-@pytest.mark.xfail(strict=True, reason="Score widget keys include the player's name, so renaming wipes their scores")
 def test_renaming_a_player_keeps_their_scores(app):
     score_input(app, "Player 1", 1).set_value(20)
     app.run()
@@ -86,7 +84,6 @@ def test_renaming_a_player_keeps_their_scores(app):
     assert totals(app)["Alice"] == 20
 
 
-@pytest.mark.xfail(strict=True, reason="Two players with the same name share widget keys -> duplicate-key exception (app crash)")
 def test_duplicate_player_names_do_not_crash(app):
     name_input(app, 1).set_value("Player 1")
     app.run()

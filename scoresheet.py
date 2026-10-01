@@ -52,54 +52,34 @@ class QuiddlerScoresheet:
             **{name: [None] * st.session_state.num_games for name in player_names}
         })
 
-    def _preserve_existing_scores_in_session(self, old_df):
-        """Preserve existing scores when structure changes by copying to session state."""
-        if old_df is None or old_df.empty:
-            return
-            
-        # Initialize scores dict if not exists
-        if "scores" not in st.session_state:
-            st.session_state.scores = {}
-        
-        # Copy existing scores to session state
-        for col in old_df.columns:
-            if col != "Round":
-                for idx, row in old_df.iterrows():
-                    round_num = row["Round"]
-                    score_value = row[col]
-                    if pd.notna(score_value) and score_value is not None:
-                        score_key = f"score_{col}_{round_num}"
-                        st.session_state.scores[score_key] = score_value
-
     def _update_dataframe_from_scores(self):
         """Update the DataFrame based on individual score entries."""
         player_names = self._get_player_names()
-        
+
         # Create new DataFrame structure
         df_data = {"Round": list(range(1, st.session_state.num_games + 1))}
-        
-        for player in player_names:
+
+        for i, player in enumerate(player_names):
             player_scores = []
             for round_num in range(1, st.session_state.num_games + 1):
-                score_key = f"score_{player}_{round_num}"
+                score_key = f"score_{i}_{round_num}"
                 score = st.session_state.scores.get(score_key, None)
                 player_scores.append(score)
             df_data[player] = player_scores
-        
+
         # Update the DataFrame in session state
         st.session_state["df_scores"] = pd.DataFrame(df_data)
 
     def _preserve_existing_scores(self, old_df, new_df):
-        """Copy scores from old DataFrame to new one where possible."""
+        """Rebuild the DataFrame from session state.
+
+        Score widget keys are index-based (see render_score_editor), so a player's
+        scores already live in st.session_state.scores independent of their name or
+        column position. Nothing needs to be copied out of the old DataFrame.
+        """
         if old_df is None or old_df.empty:
             return new_df
-            
-        # First preserve in session state
-        self._preserve_existing_scores_in_session(old_df)
-        
-        # Then update the new DataFrame from session state
         self._update_dataframe_from_scores()
-        
         return st.session_state["df_scores"]
 
     def _needs_dataframe_rebuild(self):
@@ -215,7 +195,7 @@ class QuiddlerScoresheet:
             
             for i, player in enumerate(player_names):
                 with cols[i + 1]:
-                    score_key = f"score_{player}_{round_num}"
+                    score_key = f"score_{i}_{round_num}"
                     
                     # Initialize score if not exists
                     if score_key not in st.session_state.scores:
@@ -338,8 +318,8 @@ class QuiddlerScoresheet:
             "rounds": rounds,
             "scores": [
                 [
-                    int(scores[f"score_{name}_{r}"]) if scores.get(f"score_{name}_{r}") else None
-                    for name in names
+                    int(scores[f"score_{i}_{r}"]) if scores.get(f"score_{i}_{r}") else None
+                    for i in range(len(names))
                 ]
                 for r in range(1, rounds + 1)
             ],
@@ -355,8 +335,6 @@ class QuiddlerScoresheet:
             if not (isinstance(players, list) and 2 <= len(players) <= MAX_PLAYERS):
                 return None
             if not all(isinstance(p, str) and len(p) <= MAX_NAME_LENGTH for p in players):
-                return None
-            if len(set(players)) != len(players):  # names are part of the widget keys
                 return None
             if type(rounds) is not int or not 1 <= rounds <= MAX_ROUNDS:
                 return None
@@ -380,9 +358,9 @@ class QuiddlerScoresheet:
         for i, name in enumerate(players):
             st.session_state[f"player_name_{i}"] = name
         st.session_state.scores = {
-            f"score_{name}_{r}": value
+            f"score_{i}_{r}": value
             for r, row in enumerate(state["scores"], start=1)
-            for name, value in zip(players, row)
+            for i, value in enumerate(row)
             if value
         }
 

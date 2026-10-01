@@ -45,8 +45,22 @@ def new_app(game=None):
     return at
 
 
+def _player_index(at, player):
+    """Resolve a player's current column index from the live player_name_* widgets.
+
+    Score widget keys are index-based (see scoresheet.py), so tests look names up
+    by their current position rather than embedding the name in the widget key.
+    """
+    names = sorted(
+        (int(t.key.removeprefix("player_name_")), t.value) for t in at.text_input
+        if t.key.startswith("player_name_")
+    )
+    return [name for _, name in names].index(player)
+
+
 def score_input(at, player, round_number):
-    return next(n for n in at.number_input if n.key == f"score_{player}_{round_number}")
+    index = _player_index(at, player)
+    return next(n for n in at.number_input if n.key == f"score_{index}_{round_number}")
 
 
 def setting_input(at, key):

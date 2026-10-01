@@ -146,6 +146,13 @@ def test_reopening_the_link_restores_names_rounds_and_scores(store):
     assert store.saves == []  # opening a game does not rewrite it
 
 
+def test_reopening_a_game_with_duplicate_player_names_does_not_crash(store):
+    """Score widget keys are index-based, so duplicate names round-trip safely."""
+    store.games[("quiddler", GAME_ID)] = saved_state(players=["Ann", "Ann", "Cy"])
+    at = new_app(game=GAME_ID)
+    assert not at.exception
+
+
 def test_a_refresh_round_trip_returns_to_the_same_game(store):
     first = new_app()
     score_input(first, "Player 1", 1).set_value(21)
@@ -204,7 +211,6 @@ def test_if_the_saved_game_cannot_be_loaded_saving_is_paused_so_it_is_not_overwr
     "bad_state",
     [
         saved_state(v=2),
-        saved_state(players=["Ann", "Ann", "Cy"]),  # duplicate names collide on widget keys
         saved_state(players=["Ann"]),
         saved_state(players=["A"] * 9),
         saved_state(players=["x" * 41, "Bo", "Cy"]),
