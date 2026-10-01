@@ -122,6 +122,7 @@ class QuiddlerCalculator:
                 key="calc_input",
                 placeholder="e.g. (12 / 4) + 3**2",
                 label_visibility="collapsed",
+                on_change=self.handle_calculation,
             )
 
         with col_right:

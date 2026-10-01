@@ -4,6 +4,15 @@ from streamlit.testing.v1 import AppTest
 from conftest import APP_PATH, name_input, score_input, setting_input, totals
 
 
+def test_calculator_computes_on_enter_not_just_the_button(app):
+    """Regression: the formula field used to require clicking Calculate; on_change
+    makes Enter (or losing focus) compute it too."""
+    calc_input = next(t for t in app.text_input if t.key == "calc_input")
+    calc_input.set_value("2+3")
+    app.run()
+    assert any("Result: 5" in (m.value or "") for m in app.markdown)
+
+
 def test_cold_start_renders_two_players_with_zero_totals(app):
     assert totals(app) == {"Player 1": 0, "Player 2": 0}
     assert [n.key for n in app.number_input if n.key.startswith("score_")].__len__() == 2 * 5
