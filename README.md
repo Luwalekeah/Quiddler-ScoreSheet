@@ -12,6 +12,8 @@ A Streamlit-based interactive score sheet and calculator for the Quiddler word g
   - [Usage](#usage)
   - [File Structure](#file-structure)
   - [Configuration](#configuration)
+  - [Saving Games (Optional)](#saving-games-optional)
+  - [Run in a Container (k3s)](#run-in-a-container-k3s)
   - [Dependencies](#dependencies)
   - [Contributing](#contributing)
   - [License \& Credits](#license--credits)
@@ -29,7 +31,7 @@ Quiddler ScoreSheet is a lightweight web application built with Streamlit to hel
 
 ## Features
 
-* **Interactive Calculator**: Evaluate mathematical expressions (e.g., calculating word scores) directly within the app.
+* **Interactive Calculator**: Evaluate arithmetic (`+ - * / // % **` and parentheses, e.g. calculating word scores) directly within the app. Only numbers and these operators are accepted.
 * **Dynamic Score Sheet**:
 
   * Configure the number of players (1–8) and number of rounds (1–10).
@@ -89,30 +91,93 @@ streamlit run quiddler.py
 
 ```
 Quiddler-ScoreSheet/
-├── calculator.py       # QuiddlerCalculator class: arithmetic input/output
+├── calculator.py       # QuiddlerCalculator class: safe arithmetic input/output
 ├── expander.py         # QuiddlerExpanders class: game instructions, rules, reference
 ├── scoresheet.py       # QuiddlerScoresheet class: dynamic score table + totals
+├── persistence.py      # Optional autosave of games to Supabase
 ├── quiddler.py         # Main Streamlit entry point, stitches features together
+├── supabase/schema.sql # Proposed database schema for saved games
+├── Dockerfile          # Container image (see "Run in a Container")
+├── tests/              # AppTest-based tests (run with `pytest`)
 ├── README.md           # This documentation file
-├── requirements.txt    # Python package dependencies (if provided)
+├── requirements.txt    # Pinned runtime dependencies
+├── requirements-dev.txt# Runtime dependencies + pytest
 └── .gitignore          # Ignore environment files, __pycache__, etc.
 ```
 
 ## Configuration
 
 * **Page Configuration**: The app uses `st.set_page_config` to set a centered layout and custom page title.
-* **Session State**: Player counts, round counts, and scores persist in Streamlit’s `session_state` between reruns.
+* **Session State**: Player counts, round counts, and scores persist in Streamlit’s `session_state` between reruns. They are lost when the browser tab is refreshed unless saving is enabled (next section).
 * **Expander Visibility**: The top controls (settings & player names) are hidden inside an expandable panel for a cleaner interface.
+
+## Saving Games (Optional)
+
+By default a game lives only in the open browser tab, so a refresh starts a new game. To keep games across refreshes, back the app with [Supabase](https://supabase.com/):
+
+1. In a Supabase project, run [`supabase/schema.sql`](supabase/schema.sql) in the SQL editor. It creates one table with row-level security switched on and two functions; the comments at the top explain the access model.
+2. Give the app the project URL and its anon/publishable key, as environment variables or in `.streamlit/secrets.toml` (git-ignored) / your host's secrets:
+
+   ```toml
+   SUPABASE_URL = "https://<project>.supabase.co"
+   SUPABASE_KEY = "<anon or publishable key>"
+   ```
+
+With both set:
+
+* The first change you make creates a game and adds `?game=<id>` to the page URL. Bookmark or share that link; opening it (including after a refresh) restores the sheet.
+* Every change is saved automatically. Nothing is written just for viewing the page.
+* **🆕 New game** blanks the sheet and starts a fresh game; the old one stays stored.
+* If the save service is down the sheet keeps working and shows a warning. A game that could not be loaded is never saved over.
+* The link is the only credential, so anyone who has it can view and edit that game. Only player names and scores are stored. There are no accounts, so there is no list of past games.
+* Rounds and players hidden by lowering the settings are not saved.
+
+Leave the variables unset and the app behaves exactly as before.
+
+## Run in a Container (k3s)
+
+```sh
+docker build -t quiddler-scoresheet .
+docker run --rm -p 8501:8501 quiddler-scoresheet
+```
+
+Multi-architecture image (every dependency ships arm64 wheels, so no compilers are needed):
+
+```sh
+docker buildx build --platform linux/amd64,linux/arm64 -t <registry>/quiddler-scoresheet:<tag> --push .
+```
+
+Running it on Kubernetes / k3s:
+
+* Container port `8501`. Point liveness and readiness probes at `GET /_stcore/health` (returns `ok`).
+* Runs as UID/GID `10001`, so `runAsNonRoot: true` works. The image sets `HOME=/home/app`; the app started and served pages with an unwritable `HOME`, so a read-only root filesystem is expected to work (mount an `emptyDir` at `/tmp` if you see write errors).
+* The ingress must pass WebSocket connections through (Traefik, k3s's default, does). To serve under a sub-path set `STREAMLIT_SERVER_BASE_URL_PATH`.
+* Provide `SUPABASE_URL` and `SUPABASE_KEY` from a Secret if you enable saving. Do not bake them into the image.
+* The image sets `STREAMLIT_CLIENT_TOOLBAR_MODE=viewer`, which hides the "Deploy" button and developer menu items.
+
+This repository does not include Kubernetes manifests.
 
 ## Dependencies
 
-* [Streamlit](https://streamlit.io/) ≥ 1.10.0
-* [Pandas](https://pandas.pydata.org/) ≥ 1.3.0
+Pinned in `requirements.txt` (Python **3.12 or newer** is required by NumPy 2.5):
 
-You can install these via:
+* [Streamlit](https://streamlit.io/) 1.64.0
+* [Pandas](https://pandas.pydata.org/) 3.0.6
+* [NumPy](https://numpy.org/) 2.5.3 and [PyArrow](https://arrow.apache.org/docs/python/) 25.0.1 (pulled in by Streamlit and Pandas; the app code does not import them directly)
+
+Install with:
 
 ```sh
-pip install streamlit pandas
+pip install -r requirements.txt
+```
+
+## Tests
+
+The tests drive the real app headlessly with Streamlit's `AppTest`:
+
+```sh
+pip install -r requirements-dev.txt
+pytest
 ```
 
 ## Contributing
