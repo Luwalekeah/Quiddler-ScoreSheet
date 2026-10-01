@@ -1,6 +1,7 @@
+import csv
+import io
+
 import streamlit as st
-import pandas as pd
-import numpy as np
 
 import persistence
 
@@ -24,10 +25,8 @@ class QuiddlerScoresheet:
         defaults = {
             "num_players": 2,
             "num_games": 5,
-            "settings_changed": False,
-            "df_scores": None
         }
-        
+
         for key, value in defaults.items():
             if key not in st.session_state:
                 st.session_state[key] = value
@@ -44,68 +43,16 @@ class QuiddlerScoresheet:
             for i in range(st.session_state.num_players)
         ]
 
-    def _create_empty_dataframe(self):
-        """Create a new DataFrame with current settings."""
-        player_names = self._get_player_names()
-        return pd.DataFrame({
-            "Round": list(range(1, st.session_state.num_games + 1)),
-            **{name: [None] * st.session_state.num_games for name in player_names}
-        })
-
-    def _update_dataframe_from_scores(self):
-        """Update the DataFrame based on individual score entries."""
-        player_names = self._get_player_names()
-
-        # Create new DataFrame structure
-        df_data = {"Round": list(range(1, st.session_state.num_games + 1))}
-
-        for i, player in enumerate(player_names):
-            player_scores = []
-            for round_num in range(1, st.session_state.num_games + 1):
-                score_key = f"score_{i}_{round_num}"
-                score = st.session_state.scores.get(score_key, None)
-                player_scores.append(score)
-            df_data[player] = player_scores
-
-        # Update the DataFrame in session state
-        st.session_state["df_scores"] = pd.DataFrame(df_data)
-
-    def _preserve_existing_scores(self, old_df, new_df):
-        """Rebuild the DataFrame from session state.
-
-        Score widget keys are index-based (see render_score_editor), so a player's
-        scores already live in st.session_state.scores independent of their name or
-        column position. Nothing needs to be copied out of the old DataFrame.
-        """
-        if old_df is None or old_df.empty:
-            return new_df
-        self._update_dataframe_from_scores()
-        return st.session_state["df_scores"]
-
-    def _needs_dataframe_rebuild(self):
-        """Check if DataFrame needs to be rebuilt due to setting changes or initial load."""
-        if st.session_state["df_scores"] is None:
-            return True
-            
-        df = st.session_state["df_scores"]
-        expected_cols = ["Round"] + self._get_player_names()
-        
-        # Only rebuild if structure actually changed (columns or number of rows)
-        return (
-            list(df.columns) != expected_cols or 
-            len(df) != st.session_state.num_games
-        )
-
-    def _update_scores_dataframe(self):
-        """Update or create the scores DataFrame as needed."""
-        if self._needs_dataframe_rebuild():
-            old_df = st.session_state["df_scores"]
-            new_df = self._create_empty_dataframe()
-            
-            if old_df is not None:
-                new_df = self._preserve_existing_scores(old_df, new_df)
-            
-            st.session_state["df_scores"] = new_df
+    def _player_totals(self):
+        """Each player's total across all rounds, in player order. Unset cells count as zero."""
+        scores = st.session_state.get("scores", {})
+        return {
+            player: sum(
+                scores.get(f"score_{i}_{r}") or 0
+                for r in range(1, st.session_state.num_games + 1)
+            )
+            for i, player in enumerate(self._get_player_names())
+        }
 
     def render_settings(self):
         """Render game configuration controls."""
@@ -138,14 +85,12 @@ class QuiddlerScoresheet:
         
         if new_players != current_num_players:
             st.session_state.num_players = new_players
-            st.session_state.settings_changed = True
             for i in range(current_num_players, new_players):
                 if f"player_name_{i}" not in st.session_state:
                     st.session_state[f"player_name_{i}"] = f"Player {i + 1}"
-        
+
         if new_games != current_num_games:
             st.session_state.num_games = new_games
-            st.session_state.settings_changed = True
 
     def render_player_names(self):
         """Render player name input fields."""
@@ -162,9 +107,6 @@ class QuiddlerScoresheet:
                     placeholder=f"Player {i + 1}",
                     max_chars=MAX_NAME_LENGTH,
                 )
-                
-                # Note: We don't need to manually track name changes here
-                # The _needs_dataframe_rebuild() method will detect column changes
 
     def render_score_editor(self):
         """Render the interactive score table using individual input fields."""
@@ -214,74 +156,44 @@ class QuiddlerScoresheet:
                     
                     # Update session state
                     st.session_state.scores[score_key] = score_value if score_value > 0 else None
-        
-        # Update the DataFrame based on the individual scores
-        self._update_dataframe_from_scores()
 
     def render_totals(self):
         """Display running totals for each player."""
-        if "df_scores" not in st.session_state or st.session_state["df_scores"] is None:
+        totals = self._player_totals()
+        if not totals:
             return
 
-        df = st.session_state["df_scores"]
-        player_cols = [col for col in df.columns if col != "Round"]
-        
-        if not player_cols:
-            return
-
-        # Calculate totals: Handle None/NaN values properly
-        totals = df[player_cols].fillna(0).astype(int).sum()
-        
         st.markdown("### Current Totals")
-        
-        # Create totals display with Streamlit metrics
-        total_cols = st.columns(len(player_cols))
-        for i, (player, total) in enumerate(zip(player_cols, totals)):
-            with total_cols[i]:
+
+        total_cols = st.columns(len(totals))
+        for col, (player, total) in zip(total_cols, totals.items()):
+            with col:
                 st.metric(
                     label=player,
-                    value=int(total),
+                    value=total,
                     help=f"Total score for {player}"
                 )
 
     def render_game_summary(self):
         """Display game summary and winner if all rounds completed."""
-        if "df_scores" not in st.session_state or st.session_state["df_scores"] is None:
-            return
-            
-        df = st.session_state["df_scores"]
-        player_cols = [col for col in df.columns if col != "Round"]
-        
-        if not player_cols:
+        totals = self._player_totals()
+        if not totals or not any(totals.values()):
             return
 
-        # Check if any scores have been entered yet
-        if df[player_cols].fillna(0).astype(int).sum().sum() == 0:
-            return
-            
-        # Calculate totals for summary
-        totals = df[player_cols].fillna(0).astype(int).sum()
-        max_total = totals.max()
-        winners = totals[totals == max_total].index.tolist()
-        
-        # Criteria for showing game status: at least some scores entered
-        non_zero_count = (df[player_cols].fillna(0).astype(int) != 0).sum().sum()
-        
-        if non_zero_count > 0:
-            st.markdown("---")
-            st.markdown("### 🏆 Game Status")
-            if len(winners) == 1:
-                st.success(f"**{winners[0]}** is currently winning with **{int(max_total)}** points!")
-            else:
-                winner_names = ", ".join(winners)
-                st.info(f"**Tie** between {winner_names} with **{int(max_total)}** points!")
+        max_total = max(totals.values())
+        winners = [player for player, total in totals.items() if total == max_total]
+
+        st.markdown("---")
+        st.markdown("### 🏆 Game Status")
+        if len(winners) == 1:
+            st.success(f"**{winners[0]}** is currently winning with **{max_total}** points!")
+        else:
+            winner_names = ", ".join(winners)
+            st.info(f"**Tie** between {winner_names} with **{max_total}** points!")
 
     def render_scoresheet(self):
         """Render the complete scoresheet interface."""
         self._restore_saved_game()
-
-        # Update DataFrame before rendering components, but only if needed
-        self._update_scores_dataframe()
 
         with st.expander("⚙️ Game Settings & Player Names", expanded=False):
             self.render_settings()
@@ -396,10 +308,16 @@ class QuiddlerScoresheet:
             st.button("🆕 New game", key="new_game", on_click=self._new_game, help="Start over with a blank score sheet")
 
     def export_scores(self):
-        """Export scores to CSV (future enhancement)."""
-        if "df_scores" in st.session_state and st.session_state["df_scores"] is not None:
-            return st.session_state["df_scores"].to_csv(index=False)
-        return None
+        """Export the current sheet as CSV (future enhancement)."""
+        player_names = self._get_player_names()
+        scores = st.session_state.get("scores", {})
+
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(["Round", *player_names])
+        for r in range(1, st.session_state.num_games + 1):
+            writer.writerow([r, *(scores.get(f"score_{i}_{r}", "") or "" for i in range(len(player_names)))])
+        return buffer.getvalue()
 
 
 def main():
